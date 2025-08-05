@@ -68,7 +68,7 @@ test.describe('ECareHealth Clinician Management CRUD Operations', () => {
     console.log('═'.repeat(60));
     console.log(`✅ Provider ID: ${providerId}`);
     console.log(`✅ Patient ID: ${patientId}`);
-    console.log(`✅ Appointment ID: ${appointmentId || 'N/A'}`);
+    console.log(`✅ Appointment ID: ${appointmentId}`);
     console.log('═'.repeat(60));
   });
 });
