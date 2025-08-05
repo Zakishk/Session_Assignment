@@ -1,0 +1,10 @@
+1. GO to File Path
+2. Open CMD 
+3. npm init playwright@latest
+4. Run Cmd -npx playwright test tests/final-test.spec.ts --headed
+5. npx playwright show-report
+
+
+
+
+
