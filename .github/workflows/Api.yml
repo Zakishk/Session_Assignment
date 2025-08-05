@@ -4,7 +4,10 @@ on:
   push:
     branches:
       - local
- jobs:
+  schedule:
+    - cron: '0 6 * * *' # Runs daily at 6:00 AM UTC (11:30 AM IST)
+
+jobs:
   run-api-tests:
     runs-on: ubuntu-latest
 
