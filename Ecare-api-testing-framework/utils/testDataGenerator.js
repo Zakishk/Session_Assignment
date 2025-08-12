@@ -235,38 +235,7 @@ class TestDataGenerator {
       appointmentDate.setDate(appointmentDate.getDate() + 1);
     }
     
-    // Set appointment time to match provider availability (12:00 PM EST)
-    // Provider availability is 12:00:00 to 13:00:00 in EST
-    // We need to convert EST to UTC for the API call
-    
-    // EST is UTC-5, so 12:00 EST = 17:00 UTC
-    // But we need to be careful about daylight saving time
-    // For simplicity, let's use 12:00 in the provider's timezone
-    
-    const year = appointmentDate.getFullYear();
-    const month = appointmentDate.getMonth();
-    const day = appointmentDate.getDate();
-    
-    // Create appointment at 12:00 PM EST (which is 17:00 UTC in standard time)
-    // But let's use the same timezone approach as the availability setting
-    const startTime = new Date(year, month, day, 17, 0, 0, 0); // 17:00 UTC = 12:00 EST
-    const endTime = new Date(year, month, day, 17, 30, 0, 0);   // 17:30 UTC = 12:30 EST
-    
-    // Alternative approach - let's match the exact format and timing from availability
-    // Since availability is set for 12:00:00 to 13:00:00 EST, let's book at exactly 12:00 EST
-    
-    const complaints = [
-      "Routine checkup and consultation",
-      "Follow-up appointment for ongoing treatment", 
-      "General health assessment",
-      "Preventive care consultation",
-      "Health screening appointment"
-    ];
-    
-    const complaint = complaints[Math.floor(Math.random() * complaints.length)];
-    
-    // Let's try a different approach - use the same day of week that has availability
-    // and ensure the time matches exactly
+    // Get next Monday for consistent scheduling
     const nextMonday = this.getNextWeekday(now, 1); // Get next Monday
     
     // Set time to 12:00 PM in EST timezone
@@ -281,6 +250,17 @@ class TestDataGenerator {
     console.log(`📅 Day of week: ${appointmentStart.getUTCDay()} (1=Monday, 2=Tuesday, etc.)`);
     console.log(`📅 UTC Time: ${appointmentStart.getUTCHours()}:${appointmentStart.getUTCMinutes().toString().padStart(2, '0')}`);
     console.log(`📅 EST Time: ${appointmentStart.getUTCHours() - 5}:${appointmentStart.getUTCMinutes().toString().padStart(2, '0')}`);
+    
+    const complaints = [
+      "Routine checkup and consultation",
+      "Follow-up appointment for ongoing treatment", 
+      "General health assessment",
+      "Preventive care consultation",
+      "Health screening appointment",
+      "Automated test consultation"
+    ];
+    
+    const complaint = complaints[Math.floor(Math.random() * complaints.length)];
     
     return {
       "mode": "VIRTUAL",
@@ -324,6 +304,67 @@ class TestDataGenerator {
     const nextDate = new Date(date);
     nextDate.setDate(date.getDate() + daysUntilTarget);
     return nextDate;
+  }
+
+  // Generate encounter summary data for testing
+  static generateEncounterData(appointmentId, patientId, providerId) {
+    return {
+      "encounterStatus": "INTAKE",
+      "formType": "SIMPLE_SOAP_NOTE",
+      "problems": "No acute problems identified during automated testing",
+      "habits": "Patient reports normal lifestyle habits",
+      "patientVitals": this.getDefaultVitals(),
+      "instruction": "Continue current care plan, follow up as needed",
+      "chiefComplaint": "Automated test consultation - routine care",
+      "note": "Comprehensive automated test encounter completed successfully",
+      "tx": "Standard care protocol applied during automated testing",
+      "appointmentId": appointmentId,
+      "patientId": patientId
+    };
+  }
+
+  // Get default vitals structure for encounter
+  static getDefaultVitals() {
+    return [
+      {"selected": false, "name": "bloodPressure", "label": "Blood Pressure", "unit": "mmHg"},
+      {"selected": false, "name": "bloodGlucose", "label": "Blood Glucose", "unit": "mg/dL"},
+      {"selected": false, "name": "bodyTemperature", "label": "Body Temperature", "unit": "f"},
+      {"selected": false, "name": "heartRate", "label": "Heart Rate", "unit": "BPM"},
+      {"selected": false, "name": "respirationRate", "label": "Respiration Rate", "unit": "BPM"},
+      {"selected": false, "name": "height", "label": "Height", "unit": "m"},
+      {"selected": false, "name": "weight", "label": "Weight", "unit": "lbs"},
+      {"selected": false, "name": "o2_saturation", "label": "Oxygen Saturation (SpO2)", "unit": "%"},
+      {"selected": false, "name": "pulseRate", "label": "Pulse Rate", "unit": "BPM"},
+      {"selected": false, "name": "bmi", "label": "Body Mass Index", "unit": "kg/m^2"},
+      {"selected": false, "name": "respiratoryVolume", "label": "Respiratory Volume", "unit": "ml"},
+      {"selected": false, "name": "perfusionIndex", "label": "Perfusion Index", "unit": "%"},
+      {"selected": false, "name": "peakExpiratoryFlow", "label": "Peak Expiratory Flow", "unit": "l/min"},
+      {"selected": false, "name": "forceExpiratoryVolume", "label": "Forced Expiratory Volume", "unit": "l"}
+    ];
+  }
+
+  // Generate status update data
+  static generateStatusUpdateData(appointmentId, status) {
+    return {
+      "appointmentId": appointmentId,
+      "status": status,
+      "xTENANTID": "stage_aithinkitive"
+    };
+  }
+
+  // Generate sign-off data
+  static generateSignOffData(providerId) {
+    return {
+      "provider": providerId,
+      "providerNote": `Automated test encounter completed successfully on ${new Date().toISOString()}. All required documentation and protocols followed.`,
+      "providerSignature": this.generateTestSignature()
+    };
+  }
+
+  // Generate a test signature (base64 image)
+  static generateTestSignature() {
+    // This is a minimal test signature image in base64 format
+    return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAYYAAAFKCAYAAAAZqvgqAAAAAXNSR0IArs4c6QAAH6RJREFUeF7t3Qn8f9Vcx/E3SYrQFMZEjZGyZCI7ja0kkhY0hAppMSjaGMtUSBRZisqUZeySIg3ZTSqiULYkZJuZqCmJIprz9j9X037+v/7n+zvf7/d+7/m8zuPRo+1u53nu//f+3XvPchNREEAAAQQQGBG4CRoIIIAAAjcQIBi4IRBAAAEECAbuAQQQQACBxQV4YuDuQAABBBDgiYF7AAEEEECAJwbuAQQQQACBQgFeJRVCsRkCCCAQRYBgiNLS1BMBBBAoFCAYCqHYDAEEEIgiQDBEaWnqiQACCBQKEAyFUGyGAAIIRBEgGKK0NPVEAAEECgUIhkIoNkMAAQSiCBAMUVqaeiKAAAKFAgRDIRSbIYAAAlEECIYoLU09EUAAgUIBgqEQis0QQACBKAIEQ5SWpp4IIIBAoQDBUAjFZggggEAUAYIhSktTTwQQQKBQgGAohGIzBBBAIIoAwRClpaknAgggUChAMBRCsRkCCCAQRYBgiNLS1BMBBBAoFCAYCqHYDAEEEIgiQDBEaWnqiQACCBQKEAyFUGyGAAIIRBEgGKK0NPVEAAEECgUIhkIoNkMAAQSiCBAMUVqaeiKAAAKFAgRDIRSbIYAAAlEECIYoLU09EUAAgUIBgqEQis0QQACBKAIEQ5SWpp4IIIBAoQDBUAjFZggggEAUAYIhSktTTwQQQKBQgGAohGIzBBBAIIoAwRClpaknAgggUChAMBRCsRkCCCAQRYBgiNLS1BMBBBAoFCAYCqHYDAEEEIgiQDBEaWnqiQACCBQKEAyFUGyGAAIIRBEgGKK0NPVEAAEECgUIhkIoNkMAAQSiCBAMUVqaeiKAAAKFAgRDIRSbIYAAAlEECIYoLU09EUAAgUIBgqEQis0QQACBKAIEQ5SWpp4IIIBAoQDBUAjFZggggEAUAYIhSktTTwQQQKBQgGAohGIzBBBAIIoAwRClpaknAgggUChAMBRCsRkCCCAQRYBgiNLS1BMBBBAoFCAYCqHYDAEEEIgiQDBEaWnqiQACCBQKEAyFUGyGAAIIRBEgGKK0NPVEAAEECgUIhkIoNkMAAQSiCBAMUVqaeiKAAAKFAgRDIRSbIYAAAlEECIYoLU09EUAAgUIBgqEQis0QQACBKAIEQyXZWi5v4z6+h4/iXu/3UwLt";
   }
 }
 
