@@ -74,7 +74,7 @@ class ApiClient {
     expect(response.body).toHaveProperty('message');
     expect(response.body.message).toContain('successfully');
     
-    console.log(`✓ Provider created successfully`);
+    console.log(`✅ Provider created successfully`);
     console.log(`Created provider: ${providerData.firstName} ${providerData.lastName}`);
     
     // Since the API doesn't return the provider UUID directly, we need to get it
@@ -92,7 +92,7 @@ class ApiClient {
         
         if (createdProvider) {
           const providerId = createdProvider.uuid;
-          console.log(`✓ Found created provider with UUID: ${providerId}`);
+          console.log(`✅ Found created provider with UUID: ${providerId}`);
           
           return {
             providerId,
@@ -127,7 +127,7 @@ class ApiClient {
       const response = await this.makeRequest('GET', `/api/master/provider/${providerId}`, null, [200, 404]);
       
       if (response.status === 200) {
-        console.log(`✓ Provider details retrieved successfully`);
+        console.log(`✅ Provider details retrieved successfully`);
         return response.body;
       } else {
         console.log(`Info: Individual provider endpoint not available, provider exists in system`);
@@ -143,7 +143,7 @@ class ApiClient {
     console.log('\nStep 4: Setting Provider Availability...');
     const response = await this.makeRequest('POST', '/api/master/provider/availability-setting', availabilityData);
     
-    console.log(`✓ Availability set successfully`);
+    console.log(`✅ Availability set successfully`);
     return response.body;
   }
 
@@ -159,7 +159,7 @@ class ApiClient {
       expect(response.body.message).toContain('Successfully');
       
       const requestId = response.body.requestId;
-      console.log(`✓ Patient created successfully with reference ID: ${requestId}`);
+      console.log(`✅ Patient created successfully with reference ID: ${requestId}`);
       console.log(`Created patient: ${patientData.firstName} ${patientData.lastName}`);
       
       // *** SIMPLIFIED APPROACH - RETRY MECHANISM ***
@@ -180,7 +180,7 @@ class ApiClient {
         try {
           actualPatientId = await this.findPatientUUID(patientData);
           if (actualPatientId) {
-            console.log(`✓ Found actual patient UUID on attempt ${attempts}: ${actualPatientId}`);
+            console.log(`✅ Found actual patient UUID on attempt ${attempts}: ${actualPatientId}`);
             break;
           }
         } catch (error) {
@@ -200,7 +200,7 @@ class ApiClient {
           const fallbackId = await this.findRecentPatientByName(patientData.firstName, patientData.lastName);
           if (fallbackId) {
             actualPatientId = fallbackId;
-            console.log(`✓ Found patient using fallback strategy: ${actualPatientId}`);
+            console.log(`✅ Found patient using fallback strategy: ${actualPatientId}`);
           }
         } catch (error) {
           console.log('Warning: Fallback strategy also failed');
@@ -220,7 +220,7 @@ class ApiClient {
       expect(response.body.lastName).toBe(patientData.lastName);
       
       const patientId = response.body.uuid || response.body.id;
-      console.log(`✓ Patient created successfully with ID: ${patientId}`);
+      console.log(`✅ Patient created successfully with ID: ${patientId}`);
       
       return {
         patientId,
@@ -252,7 +252,7 @@ class ApiClient {
         );
         
         if (foundPatient) {
-          console.log(`✓ Found patient by name and birth date: ${foundPatient.firstName} ${foundPatient.lastName}`);
+          console.log(`✅ Found patient by name and birth date: ${foundPatient.firstName} ${foundPatient.lastName}`);
           return foundPatient.uuid;
         }
         
@@ -265,7 +265,7 @@ class ApiClient {
         if (nameMatches.length > 0) {
           // Sort by creation timestamp if available, otherwise take the first one
           foundPatient = nameMatches[0]; // Assume first is most recent
-          console.log(`✓ Found patient by name only: ${foundPatient.firstName} ${foundPatient.lastName}`);
+          console.log(`✅ Found patient by name only: ${foundPatient.firstName} ${foundPatient.lastName}`);
           return foundPatient.uuid;
         }
         
@@ -298,7 +298,7 @@ class ApiClient {
           );
           
           if (foundPatient) {
-            console.log(`✓ Found patient on page ${page}: ${foundPatient.uuid}`);
+            console.log(`✅ Found patient on page ${page}: ${foundPatient.uuid}`);
             return foundPatient.uuid;
           }
         }
@@ -318,7 +318,7 @@ class ApiClient {
       const response = await this.makeRequest('GET', `/api/master/patient/${patientId}`, null, [200, 204, 404]);
       
       if (response.status === 200) {
-        console.log(`✓ Patient details retrieved successfully`);
+        console.log(`✅ Patient details retrieved successfully`);
         return response.body;
       } else {
         console.log(`Info: Patient details not accessible (status: ${response.status})`);
@@ -342,7 +342,7 @@ class ApiClient {
     
     const response = await this.makeRequest('POST', '/api/master/appointment', appointmentData);
     
-    console.log(`✓ Appointment booking API call successful (Status: ${response.status})`);
+    console.log(`✅ Appointment booking API call successful (Status: ${response.status})`);
     console.log('Full appointment response received:', JSON.stringify(response.body, null, 2));
     
     let appointmentId = null;
@@ -358,50 +358,134 @@ class ApiClient {
                       response.body.data?.appointmentId;
       
       if (appointmentId) {
-        console.log(`✓ Appointment ID extracted directly: ${appointmentId}`);
-        return this.createAppointmentResult(appointmentId, response.body);
+        console.log(`✅ Appointment ID extracted directly: ${appointmentId}`);
+        
+        // Verify the appointment ID is valid
+        const verification = await this.verifyAppointmentId(appointmentId);
+        if (verification.valid) {
+          return this.createAppointmentResult(appointmentId, response.body);
+        } else {
+          console.log('⚠️ Direct appointment ID verification failed, trying search strategies...');
+        }
       }
     }
     
-    // Strategy 2: Use requestId as fallback and search for appointment
+    // Strategy 2: Enhanced search with longer wait times
     if (response.body.requestId) {
       console.log('No direct appointment ID found, searching for appointment...');
       
-      // Wait for appointment to be created
-      await this.delay(3000);
+      // Wait longer for appointment to be created
+      console.log('Waiting 15 seconds for appointment creation and database sync...');
+      await this.delay(15000);
       
       try {
-        appointmentId = await this.findAppointmentUUID(appointmentData, response.body.requestId);
+        appointmentId = await this.findAppointmentUUIDEnhanced(appointmentData, response.body.requestId);
         
         if (appointmentId) {
-          console.log(`✓ Found appointment ID via search: ${appointmentId}`);
-          return this.createAppointmentResult(appointmentId, response.body);
+          console.log(`✅ Found appointment ID via enhanced search: ${appointmentId}`);
+          
+          // Verify the found appointment ID
+          const verification = await this.verifyAppointmentId(appointmentId);
+          if (verification.valid) {
+            return this.createAppointmentResult(appointmentId, response.body);
+          } else {
+            console.log('⚠️ Enhanced search appointment ID verification failed...');
+          }
         }
       } catch (searchError) {
-        console.log('Warning: Appointment search failed:', searchError.message);
+        console.log('Warning: Enhanced appointment search failed:', searchError.message);
       }
       
-      // Last resort: use requestId as appointment ID
-      console.log('Warning: Using requestId as appointment ID (may work for some operations)');
-      appointmentId = response.body.requestId;
-      return this.createAppointmentResult(appointmentId, response.body);
+      // Strategy 3: Try searching by patient/provider in a wider time range
+      try {
+        console.log('Attempting wide-range appointment search...');
+        appointmentId = await this.findAppointmentByWideSearch(appointmentData);
+        
+        if (appointmentId) {
+          console.log(`✅ Found appointment ID via wide search: ${appointmentId}`);
+          
+          // Verify the found appointment ID
+          const verification = await this.verifyAppointmentId(appointmentId);
+          if (verification.valid) {
+            return this.createAppointmentResult(appointmentId, response.body);
+          } else {
+            console.log('⚠️ Wide search appointment ID verification failed...');
+          }
+        }
+      } catch (wideSearchError) {
+        console.log('Warning: Wide search failed:', wideSearchError.message);
+      }
+      
+      // Strategy 4: Try alternative endpoints
+      try {
+        console.log('Trying alternative appointment endpoints...');
+        appointmentId = await this.findAppointmentViaAlternativeEndpoints(appointmentData);
+        
+        if (appointmentId) {
+          console.log(`✅ Found appointment ID via alternative endpoints: ${appointmentId}`);
+          
+          const verification = await this.verifyAppointmentId(appointmentId);
+          if (verification.valid) {
+            return this.createAppointmentResult(appointmentId, response.body);
+          }
+        }
+      } catch (altEndpointError) {
+        console.log('Warning: Alternative endpoints search failed:', altEndpointError.message);
+      }
+      
+      // Last resort: use requestId as appointment ID and verify it works
+      console.log('Testing requestId as appointment ID...');
+      const requestIdVerification = await this.verifyAppointmentId(response.body.requestId);
+      
+      if (requestIdVerification.valid) {
+        console.log('✅ RequestId is valid as appointment ID');
+        appointmentId = response.body.requestId;
+        return this.createAppointmentResult(appointmentId, response.body);
+      } else {
+        console.log('❌ RequestId is not valid as appointment ID');
+      }
     }
     
-    // Strategy 3: If all else fails, try to find the most recent appointment for this patient/provider
+    // Final fallback: try to find the most recent appointment for this patient/provider
     console.log('Attempting to find most recent appointment for patient/provider combination...');
     
     try {
       appointmentId = await this.findRecentAppointment(appointmentData.providerId, appointmentData.patientId);
       
       if (appointmentId) {
-        console.log(`✓ Found recent appointment ID: ${appointmentId}`);
-        return this.createAppointmentResult(appointmentId, response.body);
+        console.log(`✅ Found recent appointment ID: ${appointmentId}`);
+        
+        const verification = await this.verifyAppointmentId(appointmentId);
+        if (verification.valid) {
+          return this.createAppointmentResult(appointmentId, response.body);
+        }
       }
     } catch (error) {
       console.log('Warning: Could not find recent appointment:', error.message);
     }
     
-    throw new Error('Could not extract or find appointment ID from any strategy');
+    throw new Error('Could not extract, find, or verify appointment ID from any strategy. The appointment may have been created but cannot be accessed.');
+  }
+
+  // *** NEW METHOD: Verify Appointment ID ***
+  async verifyAppointmentId(appointmentId) {
+    console.log(`🔍 Verifying appointment ID: ${appointmentId}`);
+    
+    try {
+      // Try to get appointment details to verify it exists
+      const response = await this.makeRequest('GET', `/api/master/appointment/${appointmentId}`, null, [200, 404], true);
+      
+      if (response.status === 200) {
+        console.log('✅ Appointment ID is valid - appointment exists');
+        return { valid: true, appointment: response.body };
+      } else {
+        console.log('❌ Appointment ID is invalid - appointment not found');
+        return { valid: false, status: response.status };
+      }
+    } catch (error) {
+      console.log('❌ Error verifying appointment ID:', error.message);
+      return { valid: false, error: error.message };
+    }
   }
 
   // Helper method to create consistent appointment result
@@ -415,77 +499,208 @@ class ApiClient {
     };
   }
 
-  // *** IMPROVED APPOINTMENT UUID FINDER ***
-  async findAppointmentUUID(appointmentData, requestId) {
-    console.log('Searching for appointment UUID in provider appointments...');
+  // *** NEW ENHANCED APPOINTMENT SEARCH ***
+  async findAppointmentUUIDEnhanced(appointmentData, requestId) {
+    console.log('Enhanced appointment search starting...');
     
-    try {
-      // Get provider's appointments for today and tomorrow
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 7); // Look ahead 7 days
-      
-      const startDate = today.toISOString();
-      const endDate = tomorrow.toISOString();
-      
-      const appointmentsResponse = await this.makeRequest(
-        'GET', 
-        `/api/master/appointment?page=0&size=50&providerUuid=${appointmentData.providerId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
-        null, 
-        [200]
-      );
-      
-      if (appointmentsResponse.body.data && appointmentsResponse.body.data.content) {
-        const appointments = appointmentsResponse.body.data.content;
-        console.log(`Found ${appointments.length} appointments to search through`);
+    // Try multiple search strategies with different time ranges
+    const searchStrategies = [
+      { name: 'Today + 7 days', days: 7 },
+      { name: 'Today + 30 days', days: 30 },
+      { name: 'Today + 60 days', days: 60 },
+      { name: 'Today + 90 days', days: 90 }
+    ];
+    
+    for (const strategy of searchStrategies) {
+      try {
+        console.log(`Trying search strategy: ${strategy.name}`);
         
-        // Find appointment by matching multiple criteria
-        const foundAppointment = appointments.find(apt => {
-          const startTimeMatch = apt.startTime === appointmentData.startTime;
-          const patientMatch = apt.patientId === appointmentData.patientId;
-          const providerMatch = apt.providerId === appointmentData.providerId;
-          
-          return startTimeMatch && patientMatch && providerMatch;
-        });
+        const today = new Date();
+        const futureDate = new Date(today);
+        futureDate.setDate(today.getDate() + strategy.days);
         
-        if (foundAppointment) {
-          console.log(`✓ Found matching appointment: ${foundAppointment.uuid}`);
-          return foundAppointment.uuid;
-        }
+        const startDate = today.toISOString();
+        const endDate = futureDate.toISOString();
         
-        // Fallback: find the most recent appointment for this patient/provider
-        const recentAppointment = appointments.find(apt => 
-          apt.patientId === appointmentData.patientId && 
-          apt.providerId === appointmentData.providerId
+        const appointmentsResponse = await this.makeRequest(
+          'GET', 
+          `/api/master/appointment?page=0&size=100&providerUuid=${appointmentData.providerId}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
+          null, 
+          [200, 404],
+          true
         );
         
-        if (recentAppointment) {
-          console.log(`✓ Found recent appointment as fallback: ${recentAppointment.uuid}`);
-          return recentAppointment.uuid;
+        if (appointmentsResponse.status === 200 && appointmentsResponse.body.data && appointmentsResponse.body.data.content) {
+          const appointments = appointmentsResponse.body.data.content;
+          console.log(`Found ${appointments.length} appointments in ${strategy.name} range`);
+          
+          // Find appointment by exact match first
+          let foundAppointment = appointments.find(apt => {
+            const startTimeMatch = apt.startTime === appointmentData.startTime;
+            const patientMatch = apt.patientId === appointmentData.patientId;
+            const providerMatch = apt.providerId === appointmentData.providerId;
+            
+            return startTimeMatch && patientMatch && providerMatch;
+          });
+          
+          if (foundAppointment) {
+            console.log(`✅ Found exact matching appointment: ${foundAppointment.uuid}`);
+            return foundAppointment.uuid;
+          }
+          
+          // Find appointment by recent creation time
+          const now = new Date();
+          const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
+          
+          foundAppointment = appointments.find(apt => {
+            const patientMatch = apt.patientId === appointmentData.patientId;
+            const providerMatch = apt.providerId === appointmentData.providerId;
+            
+            // Check if created recently
+            const createdTime = new Date(apt.createdAt || apt.created || apt.createdDate || apt.updatedAt || now);
+            const isRecent = createdTime >= tenMinutesAgo;
+            
+            return patientMatch && providerMatch && isRecent;
+          });
+          
+          if (foundAppointment) {
+            console.log(`✅ Found recent appointment: ${foundAppointment.uuid}`);
+            return foundAppointment.uuid;
+          }
+        }
+      } catch (strategyError) {
+        console.log(`Strategy ${strategy.name} failed:`, strategyError.message);
+        continue;
+      }
+    }
+    
+    console.log('Enhanced search completed - no appointments found');
+    return null;
+  }
+
+  // *** NEW WIDE SEARCH METHOD ***
+  async findAppointmentByWideSearch(appointmentData) {
+    console.log('Starting wide-range appointment search...');
+    
+    try {
+      // Search without date filters to get all appointments for this provider
+      const appointmentsResponse = await this.makeRequest(
+        'GET', 
+        `/api/master/appointment?page=0&size=200&providerUuid=${appointmentData.providerId}`,
+        null, 
+        [200, 404],
+        true
+      );
+      
+      if (appointmentsResponse.status === 200 && appointmentsResponse.body.data && appointmentsResponse.body.data.content) {
+        const appointments = appointmentsResponse.body.data.content;
+        console.log(`Found ${appointments.length} total appointments for provider`);
+        
+        // Filter for recent appointments with matching patient
+        const now = new Date();
+        const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+        
+        const recentAppointments = appointments.filter(apt => {
+          const patientMatch = apt.patientId === appointmentData.patientId;
+          
+          // Check if created recently
+          const createdTime = new Date(apt.createdAt || apt.created || apt.createdDate || apt.updatedAt || now);
+          const isRecent = createdTime >= fifteenMinutesAgo;
+          
+          return patientMatch && isRecent;
+        });
+        
+        if (recentAppointments.length > 0) {
+          // Sort by creation time and take the most recent
+          recentAppointments.sort((a, b) => {
+            const timeA = new Date(a.createdAt || a.created || a.createdDate || a.updatedAt || 0);
+            const timeB = new Date(b.createdAt || b.created || b.createdDate || b.updatedAt || 0);
+            return timeB - timeA; // Most recent first
+          });
+          
+          const appointment = recentAppointments[0];
+          console.log(`✅ Found recent appointment via wide search: ${appointment.uuid}`);
+          return appointment.uuid;
         }
       }
       
-      console.log('No matching appointments found');
+      console.log('Wide search completed - no recent appointments found');
       return null;
     } catch (error) {
-      console.log('Error searching appointments:', error.message);
-      throw error;
+      console.log('Error in wide search:', error.message);
+      return null;
     }
   }
 
-  // *** NEW METHOD TO FIND RECENT APPOINTMENT ***
+  // *** NEW ALTERNATIVE ENDPOINTS METHOD ***
+  async findAppointmentViaAlternativeEndpoints(appointmentData) {
+    console.log('Trying alternative appointment endpoints...');
+    
+    // Some APIs have different endpoints for listing vs searching
+    const alternativeEndpoints = [
+      `/api/master/appointments`, // Plural version
+      `/api/appointments`,        // Different path
+      `/api/master/appointment/list`, // List version
+      `/api/master/provider/${appointmentData.providerId}/appointments`, // Provider-specific
+      `/api/master/patient/${appointmentData.patientId}/appointments`    // Patient-specific
+    ];
+    
+    for (const endpoint of alternativeEndpoints) {
+      try {
+        console.log(`Trying endpoint: ${endpoint}`);
+        const response = await this.makeRequest('GET', endpoint, null, [200, 404], true);
+        
+        if (response.status === 200 && response.body.data) {
+          // Process the response similar to other searches
+          const appointments = Array.isArray(response.body.data) ? 
+            response.body.data : response.body.data.content || [];
+          
+          console.log(`Found ${appointments.length} appointments from ${endpoint}`);
+          
+          // Look for recent appointment matching our criteria
+          const now = new Date();
+          const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
+          
+          const match = appointments.find(apt => {
+            const patientMatch = apt.patientId === appointmentData.patientId;
+            const providerMatch = apt.providerId === appointmentData.providerId;
+            
+            // Check if created recently
+            const createdTime = new Date(apt.createdAt || apt.created || apt.createdDate || apt.updatedAt || now);
+            const isRecent = createdTime >= tenMinutesAgo;
+            
+            return patientMatch && providerMatch && isRecent;
+          });
+          
+          if (match) {
+            console.log(`✅ Found appointment via ${endpoint}: ${match.uuid}`);
+            return match.uuid;
+          }
+        }
+      } catch (endpointError) {
+        console.log(`Endpoint ${endpoint} failed:`, endpointError.message);
+        continue;
+      }
+    }
+    
+    console.log('All alternative endpoints exhausted - no appointments found');
+    return null;
+  }
+
+  // *** IMPROVED FIND RECENT APPOINTMENT ***
   async findRecentAppointment(providerId, patientId) {
     console.log(`Finding most recent appointment for provider ${providerId} and patient ${patientId}`);
     
     try {
       const appointmentsResponse = await this.makeRequest(
         'GET', 
-        `/api/master/appointment?page=0&size=20&providerUuid=${providerId}`,
+        `/api/master/appointment?page=0&size=100&providerUuid=${providerId}`,
         null, 
-        [200]
+        [200, 404],
+        true
       );
       
-      if (appointmentsResponse.body.data && appointmentsResponse.body.data.content) {
+      if (appointmentsResponse.status === 200 && appointmentsResponse.body.data && appointmentsResponse.body.data.content) {
         const appointments = appointmentsResponse.body.data.content;
         
         // Find appointments for this patient/provider combination
@@ -494,9 +709,15 @@ class ApiClient {
         );
         
         if (matchingAppointments.length > 0) {
-          // Return the first one (assume it's the most recent)
+          // Sort by creation time and return the most recent
+          matchingAppointments.sort((a, b) => {
+            const timeA = new Date(a.createdAt || a.created || a.createdDate || a.updatedAt || 0);
+            const timeB = new Date(b.createdAt || b.created || b.createdDate || b.updatedAt || 0);
+            return timeB - timeA; // Most recent first
+          });
+          
           const recentAppointment = matchingAppointments[0];
-          console.log(`✓ Found recent appointment: ${recentAppointment.uuid}`);
+          console.log(`✅ Found recent appointment: ${recentAppointment.uuid}`);
           return recentAppointment.uuid;
         }
       }
@@ -513,6 +734,12 @@ class ApiClient {
   async confirmAppointment(appointmentId) {
     console.log('\nStep 8: Confirming Appointment...');
     
+    // First verify the appointment exists
+    const verification = await this.verifyAppointmentId(appointmentId);
+    if (!verification.valid) {
+      throw new Error(`Cannot confirm appointment - appointment ID ${appointmentId} is invalid or does not exist`);
+    }
+    
     const statusData = {
       "appointmentId": appointmentId,
       "status": "CONFIRMED",
@@ -521,7 +748,7 @@ class ApiClient {
     
     const response = await this.makeRequest('PUT', '/api/master/appointment/update-status', statusData);
     
-    console.log(`✓ Appointment confirmed successfully`);
+    console.log(`✅ Appointment confirmed successfully`);
     console.log(`Appointment ID: ${appointmentId} status changed to CONFIRMED`);
     
     return response.body;
@@ -529,6 +756,12 @@ class ApiClient {
 
   async checkInAppointment(appointmentId) {
     console.log('\nStep 9: Checking In Appointment...');
+    
+    // First verify the appointment exists
+    const verification = await this.verifyAppointmentId(appointmentId);
+    if (!verification.valid) {
+      throw new Error(`Cannot check in appointment - appointment ID ${appointmentId} is invalid or does not exist`);
+    }
     
     const statusData = {
       "appointmentId": appointmentId,
@@ -538,7 +771,7 @@ class ApiClient {
     
     const response = await this.makeRequest('PUT', '/api/master/appointment/update-status', statusData);
     
-    console.log(`✓ Appointment checked in successfully`);
+    console.log(`✅ Appointment checked in successfully`);
     console.log(`Appointment ID: ${appointmentId} status changed to CHECKED_IN`);
     
     return response.body;
@@ -549,7 +782,7 @@ class ApiClient {
     
     const response = await this.makeRequest('GET', `/api/master/token/${appointmentId}`, null, [200]);
     
-    console.log(`✓ Telehealth session initiated successfully`);
+    console.log(`✅ Telehealth session initiated successfully`);
     console.log(`Zoom token retrieved for appointment: ${appointmentId}`);
     
     return response.body;
@@ -583,7 +816,7 @@ class ApiClient {
       response = await this.makeRequest('POST', '/api/master/encounter-summary', encounterData, [200, 201, 400, 422], true);
       
       if (response.status < 300) {
-        console.log(`✓ Encounter creation API successful (Status: ${response.status})`);
+        console.log(`✅ Encounter creation API successful (Status: ${response.status})`);
         
         // Try to extract encounter ID from response
         if (response.body) {
@@ -595,7 +828,7 @@ class ApiClient {
         }
         
         if (encounterId) {
-          console.log(`✓ Got encounter ID directly: ${encounterId}`);
+          console.log(`✅ Got encounter ID directly: ${encounterId}`);
           success = true;
         }
       }
@@ -619,11 +852,11 @@ class ApiClient {
       
       for (let i = 0; i < searchStrategies.length && !encounterId; i++) {
         try {
-          console.log(`Trying search strategy ${i + 1}...`);
+          console.log(`Trying encounter search strategy ${i + 1}...`);
           encounterId = await searchStrategies[i]();
           
           if (encounterId) {
-            console.log(`✓ Found encounter ID via search strategy ${i + 1}: ${encounterId}`);
+            console.log(`✅ Found encounter ID via search strategy ${i + 1}: ${encounterId}`);
             success = true;
             break;
           }
@@ -640,7 +873,7 @@ class ApiClient {
       try {
         encounterId = await this.createEncounterDirectly(appointmentId, patientId, providerId);
         if (encounterId) {
-          console.log(`✓ Alternative encounter creation successful: ${encounterId}`);
+          console.log(`✅ Alternative encounter creation successful: ${encounterId}`);
           success = true;
         }
       } catch (altError) {
@@ -656,7 +889,7 @@ class ApiClient {
         const validationResponse = await this.makeRequest('GET', `/api/master/encounter-summary/${encounterId}`, null, [200, 404], true);
         
         if (validationResponse.status === 200) {
-          console.log('✓ Encounter ID validated successfully');
+          console.log('✅ Encounter ID validated successfully');
           success = true;
         } else {
           console.log('Encounter ID validation failed - encounter may not exist');
@@ -678,7 +911,7 @@ class ApiClient {
         const validationResponse = await this.makeRequest('GET', `/api/master/encounter-summary/${encounterId}`, null, [200, 404], true);
         
         if (validationResponse.status === 200) {
-          console.log('✓ RequestId validated as valid encounter ID');
+          console.log('✅ RequestId validated as valid encounter ID');
           success = true;
         } else {
           console.log('RequestId is not a valid encounter ID');
@@ -731,7 +964,7 @@ class ApiClient {
         if (encounters.length > 0) {
           const encounter = encounters[0];
           const encounterId = encounter.uuid || encounter.id || encounter.encounterId;
-          console.log(`✓ Found encounter ID: ${encounterId}`);
+          console.log(`✅ Found encounter ID: ${encounterId}`);
           return encounterId;
         }
       }
@@ -786,7 +1019,7 @@ class ApiClient {
           
           const encounter = matchingEncounters[0];
           const encounterId = encounter.uuid || encounter.id || encounter.encounterId;
-          console.log(`✓ Found recent encounter: ${encounterId}`);
+          console.log(`✅ Found recent encounter: ${encounterId}`);
           
           return encounterId;
         }
@@ -838,7 +1071,7 @@ class ApiClient {
               let bestMatch = recentEncounters.find(enc => enc.appointmentId === appointmentId) || recentEncounters[0];
               
               const encounterId = bestMatch.uuid || bestMatch.id || bestMatch.encounterId;
-              console.log(`✓ Found encounter via broad search: ${encounterId}`);
+              console.log(`✅ Found encounter via broad search: ${encounterId}`);
               return encounterId;
             }
           }
@@ -875,7 +1108,7 @@ class ApiClient {
       const response = await this.makeRequest('POST', '/api/master/encounter-summary', simpleEncounterData, [200, 201, 400, 422], true);
       
       if (response.status < 300) {
-        console.log('✓ Direct encounter creation successful');
+        console.log('✅ Direct encounter creation successful');
         
         // Wait and search for the created encounter
         await this.delay(2000);
@@ -888,99 +1121,6 @@ class ApiClient {
       }
     } catch (error) {
       console.log('Direct encounter creation error:', error.message);
-      return null;
-    }
-  }
-
-  // *** NEW METHOD: Search by patient and provider combination ***
-  async findEncounterByPatientAndProvider(patientId, providerId, appointmentId) {
-    console.log('Searching for encounter by patient and provider combination...');
-    
-    try {
-      // Try to get encounters by patient ID first
-      const patientEncounters = await this.makeRequest('GET', `/api/master/encounter-summary?patientId=${patientId}`, null, [200, 404, 500], true);
-      
-      if (patientEncounters.status === 200 && patientEncounters.body.data) {
-        let encounters = Array.isArray(patientEncounters.body.data) ? 
-          patientEncounters.body.data : 
-          patientEncounters.body.data.content || [patientEncounters.body.data];
-        
-        // Filter by provider and recent creation
-        const recentEncounters = encounters.filter(enc => {
-          const isRightProvider = !providerId || enc.providerId === providerId;
-          const isRightAppointment = !appointmentId || enc.appointmentId === appointmentId;
-          
-          // Check if created recently (within last 5 minutes)
-          const now = new Date();
-          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-          const createdTime = new Date(enc.created || enc.createdAt || now);
-          const isRecent = createdTime >= fiveMinutesAgo;
-          
-          return isRightProvider && (isRightAppointment || isRecent);
-        });
-        
-        if (recentEncounters.length > 0) {
-          // Sort by creation time and take the most recent
-          recentEncounters.sort((a, b) => {
-            const timeA = new Date(a.created || a.createdAt || 0);
-            const timeB = new Date(b.created || b.createdAt || 0);
-            return timeB - timeA; // Most recent first
-          });
-          
-          const encounter = recentEncounters[0];
-          const encounterId = encounter.uuid || encounter.id || encounter.encounterId;
-          console.log(`✓ Found recent encounter by patient/provider: ${encounterId}`);
-          return encounterId;
-        }
-      }
-      
-      console.log('No recent encounters found for patient/provider combination');
-      return null;
-    } catch (error) {
-      console.log('Error searching encounters by patient/provider:', error.message);
-      return null;
-    }
-  }
-
-  // *** NEW METHOD: Broad appointment search with better error handling ***
-  async findEncounterByAppointmentIdBroad(appointmentId) {
-    console.log('Attempting broad encounter search...');
-    
-    try {
-      // Try a general encounter list and filter locally
-      const allEncounters = await this.makeRequest('GET', `/api/master/encounter-summary?page=0&size=20`, null, [200, 404, 500], true);
-      
-      if (allEncounters.status === 200 && allEncounters.body.data) {
-        let encounters = Array.isArray(allEncounters.body.data) ? 
-          allEncounters.body.data : 
-          allEncounters.body.data.content || [allEncounters.body.data];
-        
-        // Filter for encounters from the last few minutes that might match our appointment
-        const now = new Date();
-        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-        
-        const recentEncounters = encounters.filter(enc => {
-          const createdTime = new Date(enc.created || enc.createdAt || 0);
-          const isRecent = createdTime >= fiveMinutesAgo;
-          const matchesAppointment = enc.appointmentId === appointmentId;
-          
-          return isRecent || matchesAppointment;
-        });
-        
-        if (recentEncounters.length > 0) {
-          // Prefer exact appointment match, then most recent
-          let bestMatch = recentEncounters.find(enc => enc.appointmentId === appointmentId) || recentEncounters[0];
-          
-          const encounterId = bestMatch.uuid || bestMatch.id || bestMatch.encounterId;
-          console.log(`✓ Found encounter via broad search: ${encounterId}`);
-          return encounterId;
-        }
-      }
-      
-      console.log('No encounters found via broad search');
-      return null;
-    } catch (error) {
-      console.log('Error in broad encounter search:', error.message);
       return null;
     }
   }
@@ -1003,7 +1143,7 @@ class ApiClient {
       const verifyResponse = await this.makeRequest('GET', `/api/master/encounter-summary/${encounterId}`, null, [200, 404, 400], true);
       
       if (verifyResponse.status === 200) {
-        console.log('✓ Encounter verified successfully');
+        console.log('✅ Encounter verified successfully');
       } else if (verifyResponse.status === 404 || verifyResponse.status === 400) {
         console.log(`Warning: Encounter ${encounterId} not found (status: ${verifyResponse.status})`);
         console.log('Attempting to find the correct encounter ID...');
@@ -1012,7 +1152,7 @@ class ApiClient {
         const realEncounterId = await this.findEncounterByPatientAndProvider(patientId, providerId, appointmentId);
         
         if (realEncounterId && realEncounterId !== encounterId) {
-          console.log(`✓ Found alternative encounter ID: ${realEncounterId}`);
+          console.log(`✅ Found alternative encounter ID: ${realEncounterId}`);
           verifiedEncounterId = realEncounterId;
           
           // Verify this new ID works
@@ -1074,7 +1214,7 @@ class ApiClient {
       const response = await this.makeRequest('PUT', '/api/master/encounter-summary', updateData, [200, 400, 404, 422]);
       
       if (response.status === 200) {
-        console.log(`✓ Encounter summary updated successfully`);
+        console.log(`✅ Encounter summary updated successfully`);
         return { success: true, response: response.body, encounterId: verifiedEncounterId };
       } else {
         console.log(`⚠️ Encounter update returned status ${response.status}`);
@@ -1127,7 +1267,7 @@ class ApiClient {
       const verifyResponse = await this.makeRequest('GET', `/api/master/encounter-summary/${encounterId}`, null, [200, 404, 400], true);
       
       if (verifyResponse.status === 200) {
-        console.log('✓ Encounter verified successfully for sign-off');
+        console.log('✅ Encounter verified successfully for sign-off');
       } else if (verifyResponse.status === 404 || verifyResponse.status === 400) {
         console.log(`Warning: Encounter ${encounterId} not found for sign-off (status: ${verifyResponse.status})`);
         console.log('This encounter may have been processed or removed by the system');
@@ -1155,8 +1295,8 @@ class ApiClient {
       const response = await this.makeRequest('PUT', `/api/master/encounter-summary/${verifiedEncounterId}/encounter-sign-off`, signOffData, [200, 400, 404, 422]);
       
       if (response.status === 200) {
-        console.log(`✓ Encounter signed off successfully`);
-        console.log(`✓ Provider ${providerId} completed encounter ${verifiedEncounterId}`);
+        console.log(`✅ Encounter signed off successfully`);
+        console.log(`✅ Provider ${providerId} completed encounter ${verifiedEncounterId}`);
         return { success: true, response: response.body, encounterId: verifiedEncounterId };
       } else {
         console.log(`⚠️ Encounter sign-off returned status ${response.status}`);
@@ -1220,6 +1360,76 @@ class ApiClient {
   // Helper method for delays (FIXED - was missing in your current file)
   async delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // *** DEBUG METHOD FOR TROUBLESHOOTING ***
+  async debugAppointmentResponse(response) {
+    console.log('\n🔍 DEBUGGING APPOINTMENT RESPONSE STRUCTURE:');
+    console.log('=====================================');
+    
+    // 1. Log the full response structure
+    console.log('📋 Full Response Body:', JSON.stringify(response.body, null, 2));
+    
+    // 2. Check all possible ID locations
+    const possibleIdPaths = [
+      'uuid',
+      'id', 
+      'appointmentId',
+      'appointment_id',
+      'appointmentUuid',
+      'data.uuid',
+      'data.id',
+      'data.appointmentId',
+      'data.appointment.uuid',
+      'data.appointment.id',
+      'result.uuid',
+      'result.id',
+      'requestId',
+      'transactionId'
+    ];
+    
+    console.log('\n🔍 Checking possible ID locations:');
+    for (const path of possibleIdPaths) {
+      const value = this.getNestedValue(response.body, path);
+      console.log(`   ${path}: ${value || 'NOT FOUND'}`);
+    }
+    
+    // 3. Check response headers for any ID information
+    if (response.headers) {
+      console.log('\n📨 Response Headers:');
+      const headers = response.headers();
+      Object.keys(headers).forEach(key => {
+        if (key.toLowerCase().includes('id') || key.toLowerCase().includes('appointment')) {
+          console.log(`   ${key}: ${headers[key]}`);
+        }
+      });
+    }
+    
+    // 4. Check if response contains any UUIDs
+    const responseString = JSON.stringify(response.body);
+    const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+    const uuids = responseString.match(uuidRegex) || [];
+    
+    console.log('\n🆔 Found UUIDs in response:');
+    uuids.forEach((uuid, index) => {
+      console.log(`   UUID ${index + 1}: ${uuid}`);
+    });
+    
+    return {
+      possibleIds: possibleIdPaths.map(path => ({
+        path,
+        value: this.getNestedValue(response.body, path)
+      })).filter(item => item.value),
+      uuids,
+      fullResponse: response.body
+    };
+  }
+
+  // Helper method to get nested values from object
+  getNestedValue(obj, path) {
+    return path.split('.').reduce((current, key) => {
+      return current && current[key] !== undefined ? current[key] : null;
+    }, obj);
   }
 }
 
