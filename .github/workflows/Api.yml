@@ -1,11 +1,7 @@
 name: API Test – Playwright
 
 on:
-  push:
-    branches:
-      - local
-  schedule:
-    - cron: '0 6 * * *' # Runs daily at 6:00 AM UTC (11:30 AM IST)
+  workflow_dispatch:   # Run only when manually triggered
 
 jobs:
   run-api-tests:
